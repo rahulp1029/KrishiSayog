@@ -1,0 +1,44 @@
+{
+    "device_id": "device_001",
+    "firebase_db_url": "https://krishisayog-default-rtdb.firebaseio.com",
+    "reading_interval_seconds": 5,
+
+    "gpio_pins": {
+        "dht_data": 4,
+        "moisture_digital": 17,
+        "relay_pump": 27,
+        "ultrasonic_trig": 23,
+        "ultrasonic_echo": 24,
+        "lcd_rs": 26,
+        "lcd_en": 19,
+        "lcd_d4": 13,
+        "lcd_d5": 6,
+        "lcd_d6": 5,
+        "lcd_d7": 11
+    },
+
+    "sensor_enable": {
+        "dht11": true,
+        "soil_moisture": true,
+        "ultrasonic_water_level": true,
+        "lcd_display": true
+    },
+
+    "auto_irrigation": {
+        "enabled": true,
+        "dry_threshold_percent": 30,
+        "wet_threshold_percent": 70
+    },
+
+    "water_tank": {
+        "tank_height_cm": 50,
+        "sensor_offset_cm": 2
+    },
+
+    "logging": {
+        "log_file": "krishisayog.log",
+        "log_level": "INFO",
+        "max_bytes": 5242880,
+        "backup_count": 3
+    }
+}

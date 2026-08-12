@@ -1,0 +1,24 @@
+[Unit]
+Description=KrishiSayog IoT Sensor Hub — Smart Agriculture System
+Documentation=https://github.com/rahulpokhriyal/krishisayog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/KrishiSayog_RaspberryPi_IoT
+ExecStart=/usr/bin/python3 KrishiSayog_PI.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Ensure Python output is not buffered (important for journalctl live logs)
+Environment=PYTHONUNBUFFERED=1
+
+# Give the script time to cleanup GPIO on stop
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

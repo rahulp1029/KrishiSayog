@@ -1,0 +1,219 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 150 10% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 10% 15%;
+
+    --primary: 122 45% 33%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 122 35% 56%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 120 15% 94%;
+    --muted-foreground: 150 5% 45%;
+
+    --accent: 36 100% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 120 10% 88%;
+    --input: 120 10% 88%;
+    --ring: 122 45% 33%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 122 45% 33%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 122 45% 33%;
+    --sidebar-accent: 122 50% 28%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 122 40% 38%;
+    --sidebar-ring: 36 100% 50%;
+
+    /* Custom tokens */
+    --hero-gradient: linear-gradient(135deg, hsl(122 45% 33%), hsl(122 35% 45%));
+    --card-shadow: 0 4px 24px -4px hsl(122 45% 33% / 0.1);
+    --card-shadow-hover: 0 8px 32px -4px hsl(122 45% 33% / 0.18);
+    --accent-gradient: linear-gradient(135deg, hsl(36 100% 50%), hsl(25 100% 55%));
+    --section-alt: 120 20% 96%;
+  }
+
+  .dark {
+    --background: 150 10% 8%;
+    --foreground: 120 10% 95%;
+    --card: 150 10% 12%;
+    --card-foreground: 120 10% 95%;
+    --popover: 150 10% 12%;
+    --popover-foreground: 120 10% 95%;
+    --primary: 122 45% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 122 35% 30%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 150 10% 18%;
+    --muted-foreground: 120 10% 65%;
+    --accent: 36 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 10% 20%;
+    --input: 150 10% 20%;
+    --ring: 122 45% 40%;
+    --sidebar-background: 150 10% 10%;
+    --sidebar-foreground: 120 10% 95%;
+    --sidebar-primary: 122 45% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 10% 15%;
+    --sidebar-accent-foreground: 120 10% 95%;
+    --sidebar-border: 150 10% 18%;
+    --sidebar-ring: 36 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', 'Poppins', sans-serif;
+  }
+  h1, h2, h3 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .hero-gradient {
+    background: var(--hero-gradient);
+  }
+  .accent-gradient {
+    background: var(--accent-gradient);
+  }
+  .card-shadow {
+    box-shadow: var(--card-shadow);
+  }
+  .card-shadow-hover {
+    box-shadow: var(--card-shadow-hover);
+  }
+  .section-alt {
+    background-color: hsl(var(--section-alt));
+  }
+  .text-gradient-primary {
+    background: var(--hero-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .glass-card {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .glass-dark {
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Shimmer / loading */
+  .shimmer {
+    background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.3) 50%, transparent 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(122 45% 33% / 0.25), 0 0 40px hsl(122 45% 33% / 0.1);
+  }
+  .glow-accent {
+    box-shadow: 0 0 20px hsl(36 100% 50% / 0.25), 0 0 40px hsl(36 100% 50% / 0.1);
+  }
+
+  /* Page transition */
+  .page-enter {
+    animation: pageEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Print Optimization for Soil Health Card PDF */
+@media print {
+  body {
+    background: white !important;
+    color: #0f172a !important;
+  }
+
+  /* Hide background web app elements */
+  #root,
+  header,
+  nav,
+  aside,
+  footer,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Force Radix Portal and Dialog to render full page cleanly */
+  div[data-state="open"],
+  div[role="dialog"] {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Hide dialog dark backdrop overlay */
+  div[data-state="open"] > div:first-child {
+    display: none !important;
+  }
+}

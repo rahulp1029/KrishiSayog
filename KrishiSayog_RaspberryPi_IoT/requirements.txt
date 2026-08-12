@@ -1,0 +1,17 @@
+# KrishiSayog Raspberry Pi 4 — Python Dependencies
+# Install with: pip3 install -r requirements.txt
+
+# DHT11/DHT22 Temperature & Humidity Sensor
+adafruit-circuitpython-dht
+
+# GPIO pin control for Raspberry Pi
+RPi.GPIO
+
+# Firebase Admin SDK (Realtime Database sync)
+firebase-admin
+
+# Adafruit Blinka (CircuitPython compatibility layer for RPi)
+adafruit-blinka
+
+# 16x2 LCD Display (HD44780 / JHD 162A) driver
+RPLCD
