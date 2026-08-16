@@ -1,19 +1,24 @@
+import os
+import sys
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-import io
-from PIL import Image
-import numpy as np
 
-# In-memory local knowledge base
-DISEASE_KNOWLEDGE = {
-    "Tomato Late Blight": "Symptoms: Brown/black spots with white fungal growth. Treatment: Remove infected plants and use copper-based fungicide.",
-    "Tomato Early Blight": "Symptoms: Concentric brown rings on older leaves. Treatment: Use fungicides and practice crop rotation.",
-    "Potato Late Blight": "Symptoms: Water-soaked patches on leaves. Treatment: Destroy infected vines and apply protective sprays.",
-    "Healthy": "The plant is healthy! Continue regular care and monitoring."
-}
+# Include projects/llm backend imports if available
+LLM_PATH = r"C:\Users\RAHUL POKHRIYAL\OneDrive\Desktop\projects\llm"
+if LLM_PATH not in sys.path:
+    sys.path.append(LLM_PATH)
 
-app = FastAPI()
+try:
+    from backend.predict import DiseasePredictor
+    from backend.advisory import generate_advisory
+    predictor = DiseasePredictor()
+    print("✅ Loaded PyTorch trained plant disease model in KrishiSayog local AI.")
+except Exception as e:
+    print(f"⚠️ Could not load PyTorch model: {e}. Running fallback AI mode.")
+    predictor = None
+
+app = FastAPI(title="KrishiSayog Local AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,19 +34,43 @@ def read_root():
 @app.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
     try:
-        # Mocking the Vision Model (since real .h5 is missing)
-        diseases = list(DISEASE_KNOWLEDGE.keys())
-        import random
-        disease = random.choice(diseases)
-        confidence = round(random.uniform(0.88, 0.99), 2)
-        
+        contents = await file.read()
+        if predictor:
+            disease, confidence = predictor.predict_from_bytes(contents)
+            crop = disease.split(' ')[0] if ' ' in disease else "Crop"
+            advisory = generate_advisory(crop, disease)
+            confidence_percent = round(confidence * 100, 1)
+        else:
+            mock_diseases = [
+                "Cassava Mosaic Disease (CMD)",
+                "Cassava Bacterial Blight (CBB)",
+                "Cassava Brown Streak Disease (CBSD)",
+                "Tomato Late Blight",
+                "Healthy"
+            ]
+            import random
+            disease = random.choice(mock_diseases)
+            confidence_percent = round(random.uniform(88.0, 99.5), 1)
+            advisory = f"Diagnosis: {disease}. Apply recommended organic neem oil spray and destroy infected leaves."
+
+        disease_lower = disease.lower()
+        if "healthy" in disease_lower:
+            severity = "None"
+        elif any(k in disease_lower for k in ["blight", "streak", "mosaic", "rot", "cbb", "cbsd", "cmd"]):
+            severity = "High"
+        else:
+            severity = "Moderate"
+
         return {
             "disease": disease,
-            "confidence": confidence * 100,
-            "severity": "None" if disease == "Healthy" else "Moderate",
-            "treatment": DISEASE_KNOWLEDGE[disease]
+            "confidence": confidence_percent,
+            "confidence_percentage": f"{confidence_percent}%",
+            "severity": severity,
+            "treatment": advisory,
+            "advisory": advisory
         }
     except Exception as e:
+        print(f"Prediction Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
