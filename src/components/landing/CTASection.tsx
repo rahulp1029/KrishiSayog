@@ -59,8 +59,8 @@ export function CTASection() {
                   </Button>
                 </Link>
                 <Link to="/chatbot">
-                  <Button variant="outline" className="h-12 px-8 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground gap-2">
-                    <MessageCircle className="h-4 w-4" />
+                  <Button className="h-12 px-8 bg-white hover:bg-white/90 text-primary font-bold gap-2 shadow-lg shadow-black/10 transition-all">
+                    <MessageCircle className="h-5 w-5 text-primary" />
                     Talk to KrishiBot
                   </Button>
                 </Link>
