@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Bot, User, Mic, MicOff, Globe, Sparkles, Loader2, Zap } from "lucide-react";
+import { Send, Bot, User, Mic, MicOff, Globe, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { motion, AnimatePresence } from "framer-motion";
@@ -39,7 +39,7 @@ export default function ChatbotPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "bot",
-      text: "🌱 **Namaste! I'm KrishiBot** — your AI farming assistant powered by Google Gemini.\n\nI can help you with crop advice, soil health, pest control, weather, market prices, and government schemes — **in any language!**\n\nTry asking me anything about farming! 🌾",
+      text: "🌱 **Namaste! I'm KrishiBot** — your AI farming assistant.\n\nI can help you with crop advice, soil health, pest control, weather, market prices, and government schemes — **in any language!**\n\nTry asking me anything about farming! 🌾",
       timestamp: Date.now(),
     },
   ]);
@@ -52,7 +52,6 @@ export default function ChatbotPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance>(null);
   const sendMessageRef = useRef<(text?: string) => void>(null);
-
   const hasGeminiKey = !!import.meta.env.VITE_GEMINI_API_KEY;
 
   useEffect(() => {
@@ -69,10 +68,43 @@ export default function ChatbotPage() {
     };
   }, []);
 
+  const sendMessage = useCallback(async (text?: string) => {
+    const msg = text || input;
+    if (!msg.trim() || isTyping) return;
+
+    const userMsg: ChatMessage = { role: "user", text: msg, timestamp: Date.now() };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsTyping(true);
+    setStreamingText("");
+
+    try {
+      const fullResponse = await getAIResponseStream(
+        msg,
+        messages,
+        (chunk) => setStreamingText(chunk)
+      );
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "bot", text: fullResponse, timestamp: Date.now() },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "bot", text: "⚠️ Connection error. Please try again.", timestamp: Date.now() },
+      ]);
+    }
+
+    setIsTyping(false);
+    setStreamingText("");
+    inputRef.current?.focus();
+  }, [input, isTyping, messages]);
+
   // Keep sendMessageRef in sync
   useEffect(() => {
     sendMessageRef.current = sendMessage;
-  });
+  }, [sendMessage]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
@@ -133,39 +165,6 @@ export default function ChatbotPage() {
     recognition.start();
   }, [selectedLang, stopListening]);
 
-  const sendMessage = async (text?: string) => {
-    const msg = text || input;
-    if (!msg.trim() || isTyping) return;
-
-    const userMsg: ChatMessage = { role: "user", text: msg, timestamp: Date.now() };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setIsTyping(true);
-    setStreamingText("");
-
-    try {
-      const fullResponse = await getAIResponseStream(
-        msg,
-        messages,
-        (chunk) => setStreamingText(chunk)
-      );
-
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", text: fullResponse, timestamp: Date.now() },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", text: "⚠️ Connection error. Please try again.", timestamp: Date.now() },
-      ]);
-    }
-
-    setIsTyping(false);
-    setStreamingText("");
-    inputRef.current?.focus();
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -202,16 +201,6 @@ export default function ChatbotPage() {
             <div>
               <h1 className="text-xl font-bold font-heading flex items-center gap-2">
                 KrishiBot
-                {hasGeminiKey && (
-                  <span className="text-xs font-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Gemini AI
-                  </span>
-                )}
-                {!hasGeminiKey && (
-                  <span className="text-xs font-normal bg-accent/10 text-accent px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Zap className="h-3 w-3" /> Enhanced Mode
-                  </span>
-                )}
               </h1>
               <p className="text-xs text-muted-foreground">Multilingual AI farming assistant</p>
             </div>

@@ -1,22 +1,44 @@
-// Real-time weather hook with city/state selector
-// Uses Open-Meteo API — 100% free, no API key
+// Real-time weather hook with automatic browser geolocation
+// Uses Open-Meteo API — 100% free, no API key needed
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { type WeatherData } from "../services/iotConfig";
+import { type WeatherData } from "../types/weather";
 import { fetchWeatherForLocation, searchCities, reverseGeocode, type GeoCity } from "../services/weatherService";
+
+const SAVED_CITY_KEY = "krishisayog_detected_city_v1";
+
+function getSavedCity(): GeoCity | null {
+    try {
+        const stored = localStorage.getItem(SAVED_CITY_KEY);
+        return stored ? JSON.parse(stored) : null;
+    } catch {
+        return null;
+    }
+}
+
+function saveCity(city: GeoCity) {
+    try {
+        localStorage.setItem(SAVED_CITY_KEY, JSON.stringify(city));
+    } catch (e) {
+        console.warn("Failed to store city in localStorage:", e);
+    }
+}
 
 export function useWeather() {
     const [data, setData] = useState<WeatherData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedCity, setSelectedCity] = useState<GeoCity>({
-        name: "Nashik",
-        admin1: "Maharashtra",
+
+    const initialCity: GeoCity = getSavedCity() || {
+        name: "Davanagere",
+        admin1: "Karnataka",
         country: "India",
-        latitude: 19.9975,
-        longitude: 73.7898,
-        displayName: "Nashik, Maharashtra, India",
-    });
+        latitude: 14.4673,
+        longitude: 75.9241,
+        displayName: "Davanagere, Karnataka, India",
+    };
+
+    const [selectedCity, setSelectedCity] = useState<GeoCity>(initialCity);
     const [searchResults, setSearchResults] = useState<GeoCity[]>([]);
     const [searching, setSearching] = useState(false);
     const intervalRef = useRef<number | null>(null);
@@ -39,13 +61,12 @@ export function useWeather() {
         }
     }, []);
 
-    // Fetch on mount and when city changes
+    // Automatic Browser Geolocation & Reverse Geocoding on initial mount
     useEffect(() => {
         let mounted = true;
 
-        const initLocation = () => {
-            if ("geolocation" in navigator) {
-                // Check if we already got permission or if it's default
+        const requestLiveLocation = () => {
+            if (typeof window !== "undefined" && "geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     async (position) => {
                         const { latitude, longitude } = position.coords;
@@ -53,41 +74,42 @@ export function useWeather() {
 
                         if (mounted && geoCity) {
                             setSelectedCity(geoCity);
-                            // Setting selectedCity triggers the effect to fetch weather
+                            saveCity(geoCity);
+                            fetchData(geoCity);
                         } else if (mounted) {
-                            // If reverse geocoding fails, fallback to coordinates
-                            setSelectedCity({
-                                name: "Your Location",
+                            const fallbackCity: GeoCity = {
+                                name: "Detected Location",
                                 admin1: "",
-                                country: "",
+                                country: "India",
                                 latitude,
                                 longitude,
-                                displayName: "Current Location"
-                            });
+                                displayName: "Detected Location"
+                            };
+                            setSelectedCity(fallbackCity);
+                            fetchData(fallbackCity);
                         }
                     },
                     (err) => {
-                        console.warn("Geolocation warning:", err.message);
+                        console.warn("Geolocation permission or timeout warning:", err.message);
                         if (mounted) {
                             fetchData(selectedCity);
                         }
                     },
-                    { timeout: 10000 }
+                    { timeout: 12000, enableHighAccuracy: true }
                 );
             } else {
                 if (mounted) fetchData(selectedCity);
             }
         };
 
-        // Only run geolocation if we're dealing with the default Nashik coordinates
-        // This prevents overriding user selection
-        if (selectedCity.name === "Nashik" && selectedCity.latitude === 19.9975) {
-            initLocation();
+        // Always attempt live location detection if saved location is default
+        if (!getSavedCity()) {
+            requestLiveLocation();
         } else {
             fetchData(selectedCity);
         }
 
-        // Auto-refresh every 10 minutes
+        // Auto-refresh weather every 10 minutes
         if (intervalRef.current) clearInterval(intervalRef.current);
         intervalRef.current = window.setInterval(() => fetchData(selectedCity), 600000);
 
@@ -116,6 +138,7 @@ export function useWeather() {
 
     const selectCity = useCallback((city: GeoCity) => {
         setSelectedCity(city);
+        saveCity(city);
         setSearchResults([]);
     }, []);
 

@@ -270,11 +270,21 @@ const CROP_DATABASE = [
     }
 ];
 
-function rangeScore(value: number, optimal: { min: number; max: number }): number {
-    if (value >= optimal.min && value <= optimal.max) return 100;
+function parseVal(val: any, fallback: number): number {
+    if (typeof val === "number" && !isNaN(val)) return val;
+    if (typeof val === "string") {
+        const num = parseFloat(val);
+        if (!isNaN(num)) return num;
+    }
+    return fallback;
+}
+
+function rangeScore(value: any, optimal: { min: number; max: number }): number {
+    const num = parseVal(value, (optimal.min + optimal.max) / 2);
+    if (num >= optimal.min && num <= optimal.max) return 100;
     const mid = (optimal.min + optimal.max) / 2;
-    const range = optimal.max - optimal.min;
-    const dist = Math.abs(value - mid);
+    const range = Math.max(1, optimal.max - optimal.min);
+    const dist = Math.abs(num - mid);
     return Math.max(0, Math.round(100 - (dist / range) * 80));
 }
 
@@ -282,11 +292,12 @@ export function generateCropRecommendations(
     sensor: SensorReading | null,
     weather: WeatherData | null
 ): CropRecommendation[] {
-    if (!sensor) return [];
-
     const currentMonth = new Date().getMonth() + 1; // 1-12
-    const temp = weather?.current.temp ?? sensor.temperature;
-    const humidity = weather?.current.humidity ?? sensor.humidity;
+    const tempNum = parseVal(weather?.current.temp ?? sensor?.temperature, 26);
+    const humidityNum = parseVal(weather?.current.humidity ?? sensor?.humidity, 60);
+
+    const moistureVal = sensor ? parseVal(sensor.moisture, 55) : 55;
+    const phVal = sensor ? parseVal(sensor.soilPH, 6.5) : 6.5;
 
     const scored = CROP_DATABASE.map((crop) => {
         // Season match
@@ -294,15 +305,15 @@ export function generateCropRecommendations(
         const seasonBonus = inSeason ? 20 : -30;
 
         // Soil match scores
-        const moistureScore = rangeScore(sensor.moisture, crop.optimalMoisture);
-        const phScore = rangeScore(sensor.soilPH, crop.optimalPH);
-        const nScore = rangeScore(sensor.nitrogen, crop.optimalN);
-        const pScore = rangeScore(sensor.phosphorus, crop.optimalP);
-        const kScore = rangeScore(sensor.potassium, crop.optimalK);
+        const moistureScore = rangeScore(moistureVal, crop.optimalMoisture);
+        const phScore = rangeScore(phVal, crop.optimalPH);
+        const nScore = rangeScore(sensor?.nitrogen, crop.optimalN);
+        const pScore = rangeScore(sensor?.phosphorus, crop.optimalP);
+        const kScore = rangeScore(sensor?.potassium, crop.optimalK);
         const soilMatch = Math.round((moistureScore + phScore + nScore + pScore + kScore) / 5);
 
         // Climate match
-        const tempScore = rangeScore(temp, crop.optimalTemp);
+        const tempScore = rangeScore(tempNum, crop.optimalTemp);
         const climateMatch = Math.round(tempScore);
 
         // Overall confidence
@@ -312,19 +323,19 @@ export function generateCropRecommendations(
         // Generate reasons
         const reasons: string[] = [];
         if (inSeason) reasons.push(`✅ In season (${crop.season}) — ideal planting time`);
-        if (moistureScore > 70) reasons.push(`💧 Soil moisture ${sensor.moisture}% matches ${crop.name} needs`);
-        if (phScore > 70) reasons.push(`🧪 pH ${sensor.soilPH} is within optimal range (${crop.optimalPH.min}-${crop.optimalPH.max})`);
-        if (tempScore > 70) reasons.push(`🌡️ Temperature ${temp}°C suits ${crop.name} (${crop.optimalTemp.min}-${crop.optimalTemp.max}°C)`);
+        if (moistureScore > 70) reasons.push(`💧 Soil moisture ${moistureVal}% matches ${crop.name} needs`);
+        if (phScore > 70) reasons.push(`🧪 pH ${phVal} is within optimal range (${crop.optimalPH.min}-${crop.optimalPH.max})`);
+        if (tempScore > 70) reasons.push(`🌡️ Temperature ${tempNum}°C suits ${crop.name} (${crop.optimalTemp.min}-${crop.optimalTemp.max}°C)`);
         if (nScore > 70 && pScore > 70 && kScore > 70) reasons.push(`🌱 NPK levels match crop requirements`);
         if (reasons.length === 0) reasons.push(`Based on partial soil & climate match`);
 
         // Generate risks
         const risks: string[] = [];
         if (!inSeason) risks.push(`⚠️ Not in optimal season (best: ${crop.season})`);
-        if (moistureScore < 50) risks.push(`💧 Soil moisture ${sensor.moisture}% is outside ideal range`);
-        if (phScore < 50) risks.push(`🧪 pH ${sensor.soilPH} needs adjustment for this crop`);
-        if (tempScore < 50) risks.push(`🌡️ Current temperature ${temp}°C is not ideal`);
-        if (humidity > 85) risks.push(`💦 High humidity (${humidity}%) may increase disease risk`);
+        if (moistureScore < 50) risks.push(`💧 Soil moisture ${moistureVal}% is outside ideal range`);
+        if (phScore < 50) risks.push(`🧪 pH ${phVal} needs adjustment for this crop`);
+        if (tempScore < 50) risks.push(`🌡️ Current temperature ${tempNum}°C is not ideal`);
+        if (humidityNum > 85) risks.push(`💦 High humidity (${humidityNum}%) may increase disease risk`);
 
         // Yield prediction based on conditions
         const yieldFactor = confidence / 100;

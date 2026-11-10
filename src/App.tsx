@@ -35,6 +35,8 @@ import AuthCallback from "./pages/AuthCallback";
 
 import { AuthProvider } from "./contexts/AuthContext";
 
+import SpecimenPage from "./pages/SpecimenPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -46,6 +48,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/specimen" element={<SpecimenPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
@@ -59,6 +62,7 @@ const App = () => (
               <Route path="marketplace" element={<MarketplacePage />} />
               <Route path="iot" element={<IotControlPage />} />
               <Route path="schemes" element={<GovtSchemesPage />} />
+              <Route path="chatbot" element={<ChatbotPage />} />
             </Route>
             <Route path="/disease-detection" element={<DiseaseDetection />} />
             <Route path="/chatbot" element={<ChatbotPage />} />

@@ -1,12 +1,11 @@
 // Open-Meteo Weather Service — 100% FREE, NO API KEY NEEDED
-// Provides real-time weather data for any city in the world
+// Hybrid Weather Service providing dual Array + Object property accessors
 
-import { type WeatherData } from "./iotConfig";
+import { WeatherData, DailyItem, HybridDailyData } from "@/types/weather";
 
 const GEO_API = "https://geocoding-api.open-meteo.com/v1/search";
 const WEATHER_API = "https://api.open-meteo.com/v1/forecast";
 
-// WMO Weather codes → description + emoji
 const WMO_CODES: Record<number, { desc: string; icon: string }> = {
     0: { desc: "Clear sky", icon: "☀️" },
     1: { desc: "Mainly clear", icon: "🌤️" },
@@ -34,11 +33,11 @@ const WMO_CODES: Record<number, { desc: string; icon: string }> = {
     99: { desc: "Thunderstorm with heavy hail", icon: "⛈️" },
 };
 
-function getWeatherInfo(code: number) {
-    return WMO_CODES[code] || { desc: "Unknown", icon: "🌤️" };
+export function getWeatherInfo(code: number) {
+    return WMO_CODES[code] || { desc: "Unknown Weather", icon: "🌤️" };
 }
 
-function getDayName(dateStr: string, index: number): string {
+export function getDayName(dateStr: string, index: number): string {
     if (index === 0) return "Today";
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const d = new Date(dateStr);
@@ -52,10 +51,9 @@ function formatHour(timeStr: string): string {
     return hour > 12 ? `${hour - 12}PM` : `${hour}AM`;
 }
 
-// Search cities using Open-Meteo Geocoding API
 export type GeoCity = {
     name: string;
-    admin1: string; // state/province
+    admin1: string;
     country: string;
     latitude: number;
     longitude: number;
@@ -85,17 +83,13 @@ export async function searchCities(query: string): Promise<GeoCity[]> {
     }
 }
 
-// Reverse geocode from lat/lon to get city/state
 export async function reverseGeocode(lat: number, lon: number): Promise<GeoCity | null> {
     try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
-            headers: {
-                'Accept-Language': 'en'
-            }
+            headers: { 'Accept-Language': 'en' }
         });
 
         if (!res.ok) return null;
-
         const data = await res.json();
         const address = data.address || {};
 
@@ -106,7 +100,7 @@ export async function reverseGeocode(lat: number, lon: number): Promise<GeoCity 
         return {
             name: city,
             admin1: state,
-            country: country,
+            country,
             latitude: lat,
             longitude: lon,
             displayName: [city, state, country].filter(Boolean).join(", ")
@@ -117,7 +111,6 @@ export async function reverseGeocode(lat: number, lon: number): Promise<GeoCity 
     }
 }
 
-// Fetch real weather from Open-Meteo
 export async function fetchWeatherForLocation(
     lat: number,
     lon: number,
@@ -144,11 +137,12 @@ export async function fetchWeatherForLocation(
                 "weather_code",
             ].join(","),
             daily: [
+                "weather_code",
                 "temperature_2m_max",
                 "temperature_2m_min",
-                "weather_code",
                 "precipitation_probability_max",
-                "relative_humidity_2m_mean" as string,
+                "precipitation_sum",
+                "wind_speed_10m_max",
             ].join(","),
             timezone: "auto",
             forecast_days: "7",
@@ -160,7 +154,7 @@ export async function fetchWeatherForLocation(
 
         const currentWeather = getWeatherInfo(data.current.weather_code);
 
-        // Process hourly — next 24 hours (every 3 hours = 8 points)
+        // Process hourly next 24 hours
         const currentHourIndex = new Date().getHours();
         const hourlyData = [];
         for (let i = currentHourIndex; i < Math.min(currentHourIndex + 24, data.hourly.time.length); i += 3) {
@@ -175,24 +169,53 @@ export async function fetchWeatherForLocation(
             });
         }
 
-        // Process daily
-        const dailyData = data.daily.time.map((dateStr: string, i: number) => {
-            const wInfo = getWeatherInfo(data.daily.weather_code[i]);
+        const dateArray: string[] = data.daily.time || [];
+        const weatherCodeArray: number[] = data.daily.weather_code || [];
+        const tempMaxArray: number[] = data.daily.temperature_2m_max || [];
+        const tempMinArray: number[] = data.daily.temperature_2m_min || [];
+        const popMaxArray: number[] = data.daily.precipitation_probability_max || [];
+        const precipSumArray: number[] = data.daily.precipitation_sum || [];
+        const windSpeedMaxArray: number[] = data.daily.wind_speed_10m_max || [];
+        const descriptionArray: string[] = weatherCodeArray.map(c => getWeatherInfo(c).desc);
+
+        // Array of Daily items for UI mapping (e.g. data.daily.map in WeatherPage.tsx)
+        const dailyItems: DailyItem[] = dateArray.map((dateStr: string, i: number) => {
+            const wInfo = getWeatherInfo(weatherCodeArray[i]);
             return {
                 day: getDayName(dateStr, i),
-                tempMax: Math.round(data.daily.temperature_2m_max[i] * 10) / 10,
-                tempMin: Math.round(data.daily.temperature_2m_min[i] * 10) / 10,
-                humidity: data.daily.relative_humidity_2m_mean?.[i] || 60,
-                pop: data.daily.precipitation_probability_max?.[i] || 0,
+                date: dateStr,
+                tempMax: Math.round((tempMaxArray[i] ?? 0) * 10) / 10,
+                tempMin: Math.round((tempMinArray[i] ?? 0) * 10) / 10,
+                humidity: 65,
+                pop: popMaxArray[i] ?? 0,
+                precipSum: precipSumArray[i] ?? 0,
                 description: wInfo.desc,
                 icon: wInfo.icon,
                 main: wInfo.desc,
+                windSpeedMax: windSpeedMaxArray[i] ?? 0,
+                weatherCode: weatherCodeArray[i] ?? 0,
             };
         });
 
+        // Attach structured array properties directly onto the Array object
+        const hybridDaily = dailyItems as HybridDailyData;
+        hybridDaily.date = dateArray;
+        hybridDaily.weatherCode = weatherCodeArray;
+        hybridDaily.temperatureMax = tempMaxArray;
+        hybridDaily.temperatureMin = tempMinArray;
+        hybridDaily.precipitationProbabilityMax = popMaxArray;
+        hybridDaily.precipitationSum = precipSumArray;
+        hybridDaily.windSpeedMax = windSpeedMaxArray;
+        hybridDaily.description = descriptionArray;
+
         return {
+            latitude: lat,
+            longitude: lon,
+            timezone: data.timezone || "Asia/Kolkata",
+            daily: hybridDaily,
             current: {
                 temp: Math.round(data.current.temperature_2m * 10) / 10,
+                temperature: Math.round(data.current.temperature_2m * 10) / 10,
                 feelsLike: Math.round(data.current.apparent_temperature * 10) / 10,
                 humidity: data.current.relative_humidity_2m,
                 windSpeed: Math.round(data.current.wind_speed_10m * 10) / 10,
@@ -201,12 +224,13 @@ export async function fetchWeatherForLocation(
                 visibility: 10,
                 uvi: 0,
                 clouds: data.current.cloud_cover || 0,
+                weatherCode: data.current.weather_code,
                 description: currentWeather.desc,
                 icon: currentWeather.icon,
                 main: currentWeather.desc,
             },
             hourly: hourlyData,
-            daily: dailyData,
+            locationName,
             location: locationName,
             fetchedAt: Date.now(),
         };
@@ -216,7 +240,6 @@ export async function fetchWeatherForLocation(
     }
 }
 
-// Default fetch using configured location
 export async function fetchWeather(): Promise<WeatherData> {
     const lat = parseFloat(import.meta.env.VITE_LOCATION_LAT || "19.9975");
     const lon = parseFloat(import.meta.env.VITE_LOCATION_LON || "73.7898");

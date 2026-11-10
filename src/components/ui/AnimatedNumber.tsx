@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 interface AnimatedNumberProps {
-    value: number;
+    value: number | string | null | undefined;
     decimals?: number;
     duration?: number;
     suffix?: string;
@@ -17,13 +17,17 @@ export function AnimatedNumber({
     suffix = "",
     className = "",
 }: AnimatedNumberProps) {
-    const [display, setDisplay] = useState(value);
-    const prevRef = useRef(value);
+    const isNonNumeric = value === "-" || value === null || value === undefined || (typeof value === "string" && isNaN(Number(value)));
+
+    const numValue = isNonNumeric ? 0 : typeof value === "number" ? value : parseFloat(value as string);
+    const [display, setDisplay] = useState(numValue);
+    const prevRef = useRef(numValue);
     const frameRef = useRef<number>();
 
     useEffect(() => {
+        if (isNonNumeric) return;
         const from = prevRef.current;
-        const to = value;
+        const to = numValue;
         const diff = to - from;
 
         if (Math.abs(diff) < 0.01) {
@@ -38,7 +42,6 @@ export function AnimatedNumber({
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
 
-            // Ease-out cubic
             const eased = 1 - Math.pow(1 - progress, 3);
             const current = from + diff * eased;
 
@@ -56,7 +59,15 @@ export function AnimatedNumber({
         return () => {
             if (frameRef.current) cancelAnimationFrame(frameRef.current);
         };
-    }, [value, duration]);
+    }, [numValue, duration, isNonNumeric]);
+
+    if (isNonNumeric) {
+        return (
+            <span className={`tabular-nums ${className}`}>
+                {value ?? "-"}
+            </span>
+        );
+    }
 
     const formatted = decimals > 0 ? display.toFixed(decimals) : Math.round(display).toString();
 

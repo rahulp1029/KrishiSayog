@@ -1,130 +1,148 @@
-// Realistic IoT Sensor Simulator
-// Generates time-of-day-aware sensor data with natural fluctuations
-// Replace with real ESP32 REST calls when hardware is connected
+// Live Google Apps Script Sensor Integration
+// Fetches real-time sensor data sent by Raspberry Pi to Google Sheets via Apps Script Web App
 
-import { type SensorReading } from "./iotConfig";
+import { type SensorReading, IOT_CONFIG } from "./iotConfig";
 
-// Helper: time-of-day factor (0-1) based on current hour
-function diurnalCycle(offset = 0): number {
-    const hour = new Date().getHours() + offset;
-    // Peak at 2pm (14:00), trough at 4am
-    return 0.5 + 0.5 * Math.sin(((hour - 8) / 24) * 2 * Math.PI);
-}
+export type GoogleSheetSensorRecord = {
+    timestamp: any;
+    temperature: any;
+    humidity: any;
+    ph: any;
+    soilMoisture: any;
+    soilCondition: any;
+};
 
-// Helper: small random noise
-function noise(amplitude = 1): number {
-    return (Math.random() - 0.5) * 2 * amplitude;
-}
+// Parse timestamp formats: DD/MM/YYYY HH:mm:ss, YYYY-MM-DD HH:mm:ss, ISO strings, Epoch numbers
+export function parseTimestamp(ts: any): number | null {
+    if (ts === null || ts === undefined || ts === "") return null;
 
-// Helper: clamp a value within a range
-function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
-}
-
-// Persistent state for smooth transitions
-let prevReading: SensorReading | null = null;
-
-function lerp(a: number, b: number, t: number): number {
-    return a + (b - a) * t;
-}
-
-export function getSimulatedSensorData(): SensorReading {
-    const now = Date.now();
-    const dayCycle = diurnalCycle();
-    const seconds = now / 1000;
-
-    // Soil Moisture: drops during day (evaporation), rises at night
-    // Range: 35-75%
-    const baseMoisture = 65 - dayCycle * 25;
-    const moisture = clamp(baseMoisture + noise(3) + Math.sin(seconds / 60) * 2, 30, 80);
-
-    // Air Temperature: follows diurnal cycle, 18-38°C
-    const baseTemp = 22 + dayCycle * 14;
-    const temperature = clamp(baseTemp + noise(1.5), 15, 42);
-
-    // Humidity: inverse of temperature roughly, 40-90%
-    const baseHumidity = 80 - dayCycle * 30;
-    const humidity = clamp(baseHumidity + noise(3), 35, 95);
-
-    // Soil Temperature: lags air temp slightly, lower amplitude
-    const baseSoilTemp = 20 + dayCycle * 10;
-    const soilTemp = clamp(baseSoilTemp + noise(0.8), 15, 35);
-
-    // Soil pH: relatively stable, slow drift, 5.8-7.2
-    const basePH = 6.5 + Math.sin(seconds / 300) * 0.3;
-    const soilPH = clamp(basePH + noise(0.1), 5.5, 7.5);
-
-    // NPK: slow changes over hours
-    const nitrogen = clamp(70 + Math.sin(seconds / 200) * 8 + noise(2), 40, 100);
-    const phosphorus = clamp(55 + Math.sin(seconds / 250) * 6 + noise(2), 30, 85);
-    const potassium = clamp(82 + Math.sin(seconds / 180) * 5 + noise(2), 50, 100);
-
-    // Light Intensity: follows solar cycle closely
-    const hour = new Date().getHours();
-    const isNight = hour < 6 || hour > 19;
-    const baseLux = isNight ? 10 : 2000 + dayCycle * 50000;
-    const lightIntensity = clamp(baseLux + noise(isNight ? 5 : 500), 0, 80000);
-
-    // Farm Health Score: derived from other readings
-    const moistureScore = moisture >= 45 && moisture <= 70 ? 25 : moisture >= 35 && moisture <= 80 ? 15 : 5;
-    const phScore = soilPH >= 6.0 && soilPH <= 7.0 ? 25 : soilPH >= 5.5 && soilPH <= 7.5 ? 15 : 5;
-    const tempScore = temperature >= 20 && temperature <= 32 ? 25 : temperature >= 15 && temperature <= 38 ? 15 : 5;
-    const npkScore = (nitrogen + phosphorus + potassium) / 3 > 60 ? 25 : 15;
-    const farmHealth = clamp(moistureScore + phScore + tempScore + npkScore + noise(2), 0, 100);
-
-    const raw: SensorReading = {
-        moisture: Math.round(moisture * 10) / 10,
-        temperature: Math.round(temperature * 10) / 10,
-        humidity: Math.round(humidity * 10) / 10,
-        soilPH: Math.round(soilPH * 100) / 100,
-        soilTemp: Math.round(soilTemp * 10) / 10,
-        nitrogen: Math.round(nitrogen),
-        phosphorus: Math.round(phosphorus),
-        potassium: Math.round(potassium),
-        farmHealth: Math.round(farmHealth),
-        lightIntensity: Math.round(lightIntensity),
-        timestamp: now,
-    };
-
-    // Smooth transition from previous reading (prevent jumps)
-    if (prevReading) {
-        const smooth: SensorReading = {
-            moisture: Math.round(lerp(prevReading.moisture, raw.moisture, 0.3) * 10) / 10,
-            temperature: Math.round(lerp(prevReading.temperature, raw.temperature, 0.3) * 10) / 10,
-            humidity: Math.round(lerp(prevReading.humidity, raw.humidity, 0.3) * 10) / 10,
-            soilPH: Math.round(lerp(prevReading.soilPH, raw.soilPH, 0.3) * 100) / 100,
-            soilTemp: Math.round(lerp(prevReading.soilTemp, raw.soilTemp, 0.3) * 10) / 10,
-            nitrogen: Math.round(lerp(prevReading.nitrogen, raw.nitrogen, 0.3)),
-            phosphorus: Math.round(lerp(prevReading.phosphorus, raw.phosphorus, 0.3)),
-            potassium: Math.round(lerp(prevReading.potassium, raw.potassium, 0.3)),
-            farmHealth: Math.round(lerp(prevReading.farmHealth, raw.farmHealth, 0.3)),
-            lightIntensity: Math.round(lerp(prevReading.lightIntensity, raw.lightIntensity, 0.3)),
-            timestamp: now,
-        };
-        prevReading = smooth;
-        return smooth;
+    if (typeof ts === "number") {
+        return ts < 10000000000 ? ts * 1000 : ts;
     }
 
-    prevReading = raw;
-    return raw;
+    if (typeof ts === "string") {
+        const trimmed = ts.trim();
+        if (!trimmed) return null;
+
+        // Matches DD/MM/YYYY HH:mm:ss or DD-MM-YYYY HH:mm:ss
+        const ddmmyyyy = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})[,\s]+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
+        if (ddmmyyyy) {
+            const [, day, month, year, hours, minutes, seconds] = ddmmyyyy;
+            const d = new Date(
+                parseInt(year, 10),
+                parseInt(month, 10) - 1,
+                parseInt(day, 10),
+                parseInt(hours, 10),
+                parseInt(minutes, 10),
+                parseInt(seconds, 10)
+            );
+            return d.getTime();
+        }
+
+        // Matches YYYY-MM-DD HH:mm:ss
+        const yyyymmdd = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[,\s]+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
+        if (yyyymmdd) {
+            const [, year, month, day, hours, minutes, seconds] = yyyymmdd;
+            return new Date(
+                parseInt(year, 10),
+                parseInt(month, 10) - 1,
+                parseInt(day, 10),
+                parseInt(hours, 10),
+                parseInt(minutes, 10),
+                parseInt(seconds, 10)
+            ).getTime();
+        }
+
+        const parsed = Date.parse(trimmed);
+        if (!isNaN(parsed)) {
+            return parsed;
+        }
+    }
+
+    return null;
 }
 
-// Fetch from real ESP32
-export async function fetchRealSensorData(espUrl: string): Promise<SensorReading> {
-    const res = await fetch(`${espUrl}/api/sensors`);
-    if (!res.ok) throw new Error(`ESP32 error: ${res.status}`);
-    const data = await res.json();
-    return {
-        moisture: data.moisture ?? 0,
-        temperature: data.temperature ?? 0,
-        humidity: data.humidity ?? 0,
-        soilPH: data.ph ?? 6.5,
-        soilTemp: data.soil_temp ?? 0,
-        nitrogen: data.nitrogen ?? 0,
-        phosphorus: data.phosphorus ?? 0,
-        potassium: data.potassium ?? 0,
-        farmHealth: data.health ?? 0,
-        lightIntensity: data.light ?? 0,
-        timestamp: Date.now(),
-    };
+// Extract latest sensor row/object from Google Apps Script response
+export function extractLatestRecord(json: any): GoogleSheetSensorRecord | null {
+    if (!json) return null;
+
+    let target = json;
+    if (json.data !== undefined) {
+        target = json.data;
+    }
+
+    if (Array.isArray(target)) {
+        if (target.length === 0) return null;
+        target = target[target.length - 1];
+    }
+
+    if (Array.isArray(target)) {
+        return {
+            timestamp: target[0],
+            temperature: target[1],
+            humidity: target[2],
+            ph: target[3],
+            soilMoisture: target[4],
+            soilCondition: target[5],
+        };
+    }
+
+    if (typeof target === "object" && target !== null) {
+        return {
+            timestamp: target.timestamp ?? target.Timestamp ?? target.time ?? target.Date,
+            temperature: target.temperature ?? target.Temperature ?? target.temp,
+            humidity: target.humidity ?? target.Humidity,
+            ph: target.ph ?? target.pH ?? target.PH ?? target.soilPH ?? target.soilPh,
+            soilMoisture: target.soilMoisture ?? target.SoilMoisture ?? target.moisture ?? target.Moisture,
+            soilCondition: target.soilCondition ?? target.SoilCondition ?? target.condition ?? target.Condition,
+        };
+    }
+
+    return null;
+}
+
+// Main fetch function that polls Google Apps Script Web App.
+// Returns null if request fails or invalid record received.
+export async function fetchRealSensorData(): Promise<SensorReading | null> {
+    try {
+        const res = await fetch(IOT_CONFIG.GOOGLE_APPS_SCRIPT_URL, { redirect: "follow" });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const record = extractLatestRecord(json);
+        if (!record) return null;
+
+        const parseNum = (val: any): number | "-" => {
+            if (val === null || val === undefined || val === "" || val === "-") return "-";
+            const num = typeof val === "number" ? val : parseFloat(String(val));
+            return isNaN(num) ? "-" : num;
+        };
+
+        const temp = parseNum(record.temperature);
+        const hum = parseNum(record.humidity);
+        const ph = parseNum(record.ph);
+        const moisture = parseNum(record.soilMoisture);
+        const condition = typeof record.soilCondition === "string" && record.soilCondition.trim() !== "" ? record.soilCondition.trim() : "-";
+        const recordTime = parseTimestamp(record.timestamp) ?? Date.now();
+
+        return {
+            moisture,
+            temperature: temp,
+            humidity: hum,
+            soilPH: ph,
+            soilCondition: condition,
+            soilTemp: "-",
+            nitrogen: "-",
+            phosphorus: "-",
+            potassium: "-",
+            farmHealth: typeof moisture === "number" && typeof temp === "number" ? Math.round(Math.min(100, Math.max(0, moisture * 0.5 + temp * 1.5))) : "-",
+            lightIntensity: 0,
+            timestamp: recordTime,
+        };
+    } catch {
+        return null;
+    }
+}
+
+export function getSimulatedSensorData(): SensorReading | null {
+    return null;
 }

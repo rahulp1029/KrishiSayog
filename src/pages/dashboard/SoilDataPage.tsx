@@ -7,8 +7,9 @@ import { LiveIndicator } from "@/components/ui/LiveIndicator";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { AiReportModal } from "@/components/dashboard/AiReportModal";
 
-function GaugeCard({ icon: Icon, label, value, unit, color, optimal }: { icon: any; label: string; value: number; unit: string; color: string; optimal: string }) {
-    const pct = Math.min(value / 100, 1) * 100;
+function GaugeCard({ icon: Icon, label, value, unit, color, optimal }: { icon: any; label: string; value: number | string; unit: string; color: string; optimal: string }) {
+    const numVal = typeof value === "number" ? value : 0;
+    const pct = Math.min(numVal / 100, 1) * 100;
     return (
         <Card className="card-shadow hover:card-shadow-hover transition-shadow duration-300">
             <CardContent className="pt-6">
@@ -19,7 +20,7 @@ function GaugeCard({ icon: Icon, label, value, unit, color, optimal }: { icon: a
                     <div>
                         <p className="text-sm text-muted-foreground">{label}</p>
                         <p className="text-xl font-bold">
-                            <AnimatedNumber value={value} decimals={unit === "" ? 2 : 1} suffix={unit} />
+                            <AnimatedNumber value={value} decimals={typeof value === "number" ? (unit === "" ? 2 : 1) : 0} suffix={typeof value === "number" ? unit : ""} />
                         </p>
                     </div>
                 </div>
@@ -54,10 +55,10 @@ export default function SoilDataPage() {
 
             {/* Sensor cards — now live! */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <GaugeCard icon={Droplets} label="Soil Moisture" value={current?.moisture ?? 0} unit="%" color="bg-secondary text-secondary-foreground" optimal="50-75%" />
-                <GaugeCard icon={Leaf} label="Soil pH" value={current?.soilPH ?? 0} unit="" color="hero-gradient text-primary-foreground" optimal="6.0-7.0" />
-                <GaugeCard icon={Thermometer} label="Soil Temperature" value={current?.soilTemp ?? 0} unit="°C" color="bg-accent text-accent-foreground" optimal="20-30°C" />
-                <GaugeCard icon={Layers} label="Organic Matter" value={current ? Math.round(current.farmHealth * 0.5) : 0} unit="%" color="hero-gradient text-primary-foreground" optimal="3-5%" />
+                <GaugeCard icon={Droplets} label="Soil Moisture" value={current?.moisture ?? "-"} unit="%" color="bg-secondary text-secondary-foreground" optimal="50-75%" />
+                <GaugeCard icon={Leaf} label="Soil pH" value={current?.soilPH ?? "-"} unit="" color="hero-gradient text-primary-foreground" optimal="6.0-7.0" />
+                <GaugeCard icon={Thermometer} label="Soil Temperature" value={current?.soilTemp ?? "-"} unit="°C" color="bg-accent text-accent-foreground" optimal="20-30°C" />
+                <GaugeCard icon={Layers} label="Organic Matter" value={typeof current?.farmHealth === "number" ? Math.round(current.farmHealth * 0.5) : "-"} unit="%" color="hero-gradient text-primary-foreground" optimal="3-5%" />
             </div>
 
             {/* NPK Levels — live! */}

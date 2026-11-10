@@ -1,16 +1,17 @@
 // KrishiSayog IoT Configuration
-// Flip IOT_MODE to "real" when ESP32 hardware is connected
 
 export const IOT_CONFIG = {
-    // "simulator" = use built-in realistic data simulator
-    // "real"      = fetch from ESP32 REST API
-    IOT_MODE: (import.meta.env.VITE_IOT_MODE as string) || "simulator",
+    // "real" = fetch live sensor data from Google Apps Script endpoint
+    IOT_MODE: (import.meta.env.VITE_IOT_MODE as string) || "real",
 
-    // ESP32 endpoint — set when hardware is connected
+    // Google Apps Script Web App Endpoint
+    GOOGLE_APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzSl-ZxQILcEeUddJ2ib55LYA4Bn0_KDRLn_bkBZloW1T7o0h0MnYaPIUCqXEL68CBg/exec",
+
+    // ESP32 endpoint — fallback if connected
     ESP32_URL: (import.meta.env.VITE_ESP32_URL as string) || "http://192.168.1.100",
 
-    // Sensor polling interval (ms)
-    SENSOR_POLL_INTERVAL: 5000,    // 5 seconds for sensors
+    // Sensor polling interval (1 second)
+    SENSOR_POLL_INTERVAL: 1000,    // 1 second polling interval
     WEATHER_POLL_INTERVAL: 600000, // 10 minutes for weather
     MARKET_POLL_INTERVAL: 30000,   // 30 seconds for market prices
 
@@ -26,17 +27,18 @@ export const IOT_CONFIG = {
 };
 
 export type SensorReading = {
-    moisture: number;      // % (0-100)
-    temperature: number;   // °C
-    humidity: number;      // %
-    soilPH: number;        // 0-14
-    soilTemp: number;      // °C
-    nitrogen: number;      // mg/kg (0-100)
-    phosphorus: number;    // mg/kg (0-100)
-    potassium: number;     // mg/kg (0-100)
-    farmHealth: number;    // score 0-100
-    lightIntensity: number; // lux
-    timestamp: number;     // Unix ms
+    moisture: number | string;      // % or "-"
+    temperature: number | string;   // °C or "-"
+    humidity: number | string;      // % or "-"
+    soilPH: number | string;        // pH or "-"
+    soilCondition?: string;         // DRY | SEMI-MOIST | WET | "-"
+    soilTemp?: number | string;     // °C or "-"
+    nitrogen?: number | string;     // mg/kg or "-"
+    phosphorus?: number | string;   // mg/kg or "-"
+    potassium?: number | string;    // mg/kg or "-"
+    farmHealth: number | string;    // score or "-"
+    lightIntensity: number;         // lux
+    timestamp: number;             // Unix ms
 };
 
 export type WeatherData = {
