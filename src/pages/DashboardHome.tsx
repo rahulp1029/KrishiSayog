@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, Droplets, Thermometer, Leaf, Cloud, TrendingUp, Wheat, AlertTriangle, Brain, Sprout, Zap, FileText } from "lucide-react";
+import { Heart, Droplets, Thermometer, Leaf, Cloud, TrendingUp, Wheat, AlertTriangle, Brain, Sprout, Zap, FileText, Store } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,14 +10,17 @@ import { LiveIndicator } from "@/components/ui/LiveIndicator";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { generateCropRecommendations, type CropRecommendation } from "@/services/cropRecommendationEngine";
 import { AiReportModal } from "@/components/dashboard/AiReportModal";
+import { EmergencyAlertBanner } from "@/components/dashboard/EmergencyAlertBanner";
+import { fetchLiveMandiPrices, MandiCropPrice } from "@/services/marketService";
 
 /* ─── Circular Gauge ─── */
-function CircularGauge({ value, max = 100, size = 140 }: { value: number; max?: number; size?: number }) {
+function CircularGauge({ value, max = 100, size = 140 }: { value: number | string; max?: number; size?: number }) {
+  const numericValue = typeof value === "number" ? value : (typeof value === "string" && !isNaN(parseFloat(value)) ? parseFloat(value) : 0);
   const radius = (size - 14) / 2;
   const circumference = 2 * Math.PI * radius;
-  const pct = value / max;
+  const pct = numericValue / max;
   const offset = circumference * (1 - pct);
-  const color = value >= 75 ? "hsl(122, 45%, 33%)" : value >= 50 ? "hsl(36, 100%, 50%)" : "hsl(0, 84%, 60%)";
+  const color = numericValue >= 75 ? "hsl(122, 45%, 33%)" : numericValue >= 50 ? "hsl(36, 100%, 50%)" : "hsl(0, 84%, 60%)";
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -39,20 +43,20 @@ function CircularGauge({ value, max = 100, size = 140 }: { value: number; max?: 
   );
 }
 
-const StatCard = ({ icon: Icon, label, value, unit, sub, color }: { icon: any; label: string; value: number; unit?: string; sub?: string; color: string }) => (
+const StatCard = ({ icon: Icon, label, value, unit, sub, color }: { icon: any; label: string; value: number | string; unit?: string; sub?: string; color: string }) => (
   <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
     <Card className="card-shadow hover:card-shadow-hover transition-all duration-300 group">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">{label}</p>
-            <p className="text-2xl font-bold">
-              <AnimatedNumber value={value} decimals={unit === "°C" || unit === "%" ? 1 : 0} suffix={unit || ""} />
+      <CardContent className="p-3.5 sm:p-5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm text-muted-foreground mb-0.5 sm:mb-1 truncate">{label}</p>
+            <p className="text-lg sm:text-2xl font-bold">
+              <AnimatedNumber value={value} decimals={typeof value === "number" && (unit === "°C" || unit === "%") ? 1 : 0} suffix={typeof value === "number" ? (unit || "") : ""} />
             </p>
-            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+            {sub && <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">{sub}</p>}
           </div>
-          <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${color} group-hover:scale-110 transition-transform`}>
-            <Icon className="h-5 w-5" />
+          <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center shrink-0 ${color} group-hover:scale-110 transition-transform`}>
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
       </CardContent>
@@ -62,61 +66,72 @@ const StatCard = ({ icon: Icon, label, value, unit, sub, color }: { icon: any; l
 
 export default function DashboardHome() {
   const { current, chartData, isLive, lastUpdated, mode } = useSensorData();
-  const { data: weatherData } = useWeather();
+  const { data: weatherData, selectedCity } = useWeather();
   const { user } = useAuth();
+
+  const [mandiPrices, setMandiPrices] = useState<MandiCropPrice[]>([]);
+  const [mandiName, setMandiName] = useState<string>("APMC Mandi");
 
   // Get the user's first name for greeting
   const firstName = user?.name?.split(" ")[0] || user?.email?.split("@")[0] || "Farmer";
+
+  // Active detected location
+  const currentLocationName = weatherData?.locationName || selectedCity?.displayName || "Davanagere, Karnataka";
+
+  // Fetch live regional Mandi Commodity Prices
+  useEffect(() => {
+    fetchLiveMandiPrices(currentLocationName).then(res => {
+      setMandiPrices(res.prices);
+      setMandiName(res.mandiName);
+    });
+  }, [currentLocationName]);
 
   // Generate real-time crop recommendations based on live IoT data
   const recommendations = generateCropRecommendations(current, weatherData);
   const topCrop = recommendations[0];
 
-  const cropPrices = [
-    { crop: "Rice", price: 2100 }, { crop: "Wheat", price: 2275 },
-    { crop: "Cotton", price: 6500 }, { crop: "Sugarcane", price: 3150 },
-    { crop: "Maize", price: 1962 },
-  ];
-
-  const weatherDesc = weatherData
-    ? `${weatherData.current.temp}°C • ${weatherData.current.description} • ${weatherData.location}`
-    : "Loading weather...";
+  const weatherDesc = weatherData && weatherData.current
+    ? `${weatherData.current.temp}°C • ${weatherData.current.description} • ${currentLocationName}`
+    : "Detecting location & weather...";
 
   return (
-    <div className="space-y-6 page-enter">
+    <div className="space-y-4 sm:space-y-6 page-enter">
+      {/* High Priority Government & Severe Weather Alert Banner */}
+      <EmergencyAlertBanner locationName={currentLocationName} />
+
       {/* Welcome + Live badge */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-heading">Welcome back, {firstName}! 👋</h1>
-          <p className="text-muted-foreground text-sm">Here's what's happening on your farm today.</p>
+          <h1 className="text-xl sm:text-2xl font-bold font-heading">Welcome back, {firstName}! 👋</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm">Here's what's happening on your farm today.</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-          <AiReportModal sensorData={current || {}} />
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <AiReportModal sensorData={current || {}} weatherData={weatherData} />
           <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} mode={mode} />
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Cloud className="h-4 w-4" />
-            <span>{weatherDesc}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground bg-muted/40 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border max-w-full">
+            <Cloud className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+            <span className="font-medium truncate">{weatherDesc}</span>
           </div>
         </div>
       </div>
 
       {/* Farm Health Gauge + Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card className="card-shadow lg:col-span-1">
-          <CardContent className="pt-6 flex flex-col items-center">
-            <p className="text-sm font-semibold mb-3">Farm Health Score</p>
-            <CircularGauge value={current?.farmHealth ?? 0} />
-            <p className="text-xs text-muted-foreground mt-3">
-              {(current?.farmHealth ?? 0) >= 75 ? "Good condition ✓" : (current?.farmHealth ?? 0) >= 50 ? "Needs attention ⚠" : "Critical ✕"}
+          <CardContent className="p-4 sm:pt-6 flex flex-col items-center">
+            <p className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3">Farm Health Score</p>
+            <CircularGauge value={current?.farmHealth ?? "-"} size={120} />
+            <p className="text-xs text-muted-foreground mt-2 sm:mt-3">
+              {typeof current?.farmHealth === "number" ? (current.farmHealth >= 75 ? "Good condition ✓" : current.farmHealth >= 50 ? "Needs attention ⚠" : "Critical ✕") : "Offline"}
             </p>
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Droplets} label="Soil Moisture" value={current?.moisture ?? 0} unit="%" sub="Real-time sensor" color="bg-secondary text-secondary-foreground" />
-          <StatCard icon={Thermometer} label="Temperature" value={current?.temperature ?? 0} unit="°C" sub={weatherData ? weatherData.current.description : "Loading..."} color="bg-accent text-accent-foreground" />
-          <StatCard icon={Leaf} label="Soil pH" value={current?.soilPH ?? 0} unit="" sub={current?.soilPH ? (current.soilPH < 6.5 ? "Acidic" : current.soilPH > 7.0 ? "Alkaline" : "Optimal ✓") : ""} color="hero-gradient text-primary-foreground" />
-          <StatCard icon={Sprout} label="NPK Index" value={current ? Math.round((current.nitrogen + current.phosphorus + current.potassium) / 3) : 0} unit="%" sub={current ? `N:${current.nitrogen} P:${current.phosphorus} K:${current.potassium}` : ""} color="hero-gradient text-primary-foreground" />
+        <div className="lg:col-span-4 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <StatCard icon={Droplets} label="Soil Moisture" value={current?.moisture ?? "-"} unit="%" sub={current?.soilCondition ? `Condition: ${current.soilCondition}` : "Real-time"} color="bg-secondary text-secondary-foreground" />
+          <StatCard icon={Thermometer} label="Temperature" value={current?.temperature ?? "-"} unit="°C" sub={weatherData ? weatherData.current.description : "Loading..."} color="bg-accent text-accent-foreground" />
+          <StatCard icon={Leaf} label="Soil pH" value={current?.soilPH ?? "-"} unit="" sub={typeof current?.soilPH === "number" ? (current.soilPH < 6.5 ? "Acidic" : current.soilPH > 7.0 ? "Alkaline" : "Optimal ✓") : ""} color="hero-gradient text-primary-foreground" />
+          <StatCard icon={Sprout} label="NPK Index" value={typeof current?.nitrogen === "number" && typeof current?.phosphorus === "number" && typeof current?.potassium === "number" ? Math.round((current.nitrogen + current.phosphorus + current.potassium) / 3) : "-"} unit="%" sub={typeof current?.nitrogen === "number" ? `N:${current.nitrogen} P:${current.phosphorus} K:${current.potassium}` : ""} color="hero-gradient text-primary-foreground" />
         </div>
       </div>
 
@@ -149,17 +164,25 @@ export default function DashboardHome() {
 
         <Card className="card-shadow">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4 text-accent" /> Market Prices (₹/quintal)
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp className="h-4 w-4 text-accent" /> Live Market Prices (₹/quintal)
+              </CardTitle>
+              <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium bg-muted/60 px-2 py-0.5 rounded">
+                <Store className="h-3 w-3 text-primary" /> {mandiName}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={cropPrices}>
+              <BarChart data={mandiPrices}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="crop" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip />
+                <XAxis dataKey="crop" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <Tooltip 
+                  formatter={(value: any) => [`₹${value}/quintal`, "Mandi Rate"]} 
+                  labelFormatter={(label) => `Crop: ${label}`}
+                />
                 <Bar dataKey="price" fill="hsl(122, 45%, 33%)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

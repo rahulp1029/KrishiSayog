@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { Bell, LogOut, Mail, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef, useEffect } from "react";
@@ -140,9 +141,11 @@ export default function DashboardLayout() {
               </div>
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 bg-background overflow-auto">
+          <main className="flex-1 p-3 sm:p-4 md:p-6 pb-24 md:pb-6 bg-background overflow-auto">
             <Outlet />
           </main>
+          {/* Mobile Bottom Navigation Bar */}
+          <MobileBottomNav />
         </div>
       </div>
     </SidebarProvider>
