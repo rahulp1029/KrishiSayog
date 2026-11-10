@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
-    const { signInWithGoogle, signInWithGithub, isLoading } = useAuth();
+    const { signInWithGoogle, signInWithGithub, loginAsDemo, isLoading } = useAuth();
 
     const handleGoogleLogin = () => {
         signInWithGoogle();
@@ -13,6 +13,10 @@ export default function LoginPage() {
 
     const handleGithubLogin = () => {
         signInWithGithub();
+    };
+
+    const handleDemoLogin = () => {
+        loginAsDemo();
     };
 
     return (
@@ -113,7 +117,21 @@ export default function LoginPage() {
                                     Continue with GitHub
                                 </Button>
 
-                                <p className="text-xs text-center text-muted-foreground mt-6 pt-4 border-t border-border">
+                                <div className="relative my-2">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-border" />
+                                    </div>
+                                    <div className="relative flex justify-center text-xs uppercase">
+                                        <span className="bg-card px-2 text-muted-foreground">Or</span>
+                                    </div>
+                                </div>
+
+                                <Button onClick={handleDemoLogin} type="button" className="w-full h-12 text-sm font-semibold gap-2 hero-gradient text-primary-foreground shadow-md hover:opacity-90 transition-opacity" disabled={isLoading}>
+                                    <Sprout className="h-5 w-5" />
+                                    Instant Farmer Access (One-Click)
+                                </Button>
+
+                                <p className="text-xs text-center text-muted-foreground mt-4 pt-4 border-t border-border">
                                     By signing in, you agree to our Terms of Service and Privacy Policy.
                                 </p>
                             </div>
