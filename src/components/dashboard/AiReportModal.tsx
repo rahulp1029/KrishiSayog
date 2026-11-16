@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -87,8 +88,16 @@ export function AiReportModal({ sensorData, weatherData }: AiReportModalProps) {
             setChatMessages([
                 { role: "bot", text: initialGreeting, timestamp: Date.now() }
             ]);
-        } catch (err) {
+        } catch (err: any) {
             console.error("Report Generation Failed", err);
+            toast.error("Report generation issue. Retrying with offline AI engine...");
+            try {
+                // Guaranteed fallback
+                const fallbackData = await generateAIReport(sensorData || {}, langToUse, null);
+                setReport(fallbackData);
+            } catch (fbErr) {
+                console.error("Fallback also failed:", fbErr);
+            }
         } finally {
             setLoading(false);
         }

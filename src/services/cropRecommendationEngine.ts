@@ -290,11 +290,11 @@ function rangeScore(value: any, optimal: { min: number; max: number }): number {
 
 export function generateCropRecommendations(
     sensor: SensorReading | null,
-    weather: WeatherData | null
+    weather: any | null
 ): CropRecommendation[] {
     const currentMonth = new Date().getMonth() + 1; // 1-12
-    const tempNum = parseVal(weather?.current.temp ?? sensor?.temperature, 26);
-    const humidityNum = parseVal(weather?.current.humidity ?? sensor?.humidity, 60);
+    const tempNum = parseVal(weather?.current?.temp ?? weather?.temperature ?? sensor?.temperature, 26);
+    const humidityNum = parseVal(weather?.current?.humidity ?? weather?.humidity ?? sensor?.humidity, 60);
 
     const moistureVal = sensor ? parseVal(sensor.moisture, 55) : 55;
     const phVal = sensor ? parseVal(sensor.soilPH, 6.5) : 6.5;

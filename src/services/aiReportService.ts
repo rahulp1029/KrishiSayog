@@ -59,8 +59,15 @@ export async function generateAIReport(
         timestamp: Date.now()
     };
 
-    const dynamicCropRecs = generateCropRecommendations(defaultData, weatherData || null);
-    const topCropNames = dynamicCropRecs.slice(0, 4).map(c => c.name);
+    let topCropNames = ["Brinjal (Eggplant)", "Tomato", "Wheat", "Maize"];
+    try {
+        const dynamicCropRecs = generateCropRecommendations(defaultData, weatherData || null);
+        if (dynamicCropRecs && dynamicCropRecs.length > 0) {
+            topCropNames = dynamicCropRecs.slice(0, 4).map(c => c.name);
+        }
+    } catch (cropErr) {
+        console.warn("Crop recommendation engine error (non-fatal):", cropErr);
+    }
 
     let weatherContextPrompt = "LIVE WEATHER DATA (Open-Meteo Forecast):\n- Status: Live Weather Unavailable\n";
 
