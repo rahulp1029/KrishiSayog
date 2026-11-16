@@ -341,7 +341,7 @@ export function AiReportModal({ sensorData, weatherData }: AiReportModalProps) {
                                     </div>
                                     <div className="bg-white/90 p-2.5 rounded-lg border border-emerald-200 shadow-sm print:border-slate-300">
                                         <span className="text-[11px] text-slate-500 block font-medium">Soil Moisture</span>
-                                        <span className="text-base font-bold text-blue-700">{sensorData?.moisture ?? 58}%</span>
+                                        <span className="text-base font-bold text-blue-700">{Number(sensorData?.moisture ?? 45).toFixed(1)}%</span>
                                     </div>
                                     <div className="bg-white/90 p-2.5 rounded-lg border border-emerald-200 shadow-sm print:border-slate-300">
                                         <span className="text-[11px] text-slate-500 block font-medium">Tomorrow's Rain</span>
@@ -349,7 +349,7 @@ export function AiReportModal({ sensorData, weatherData }: AiReportModalProps) {
                                     </div>
                                     <div className="bg-white/90 p-2.5 rounded-lg border border-emerald-200 shadow-sm print:border-slate-300">
                                         <span className="text-[11px] text-slate-500 block font-medium">Soil pH</span>
-                                        <span className="text-base font-bold text-purple-700">{sensorData?.soilPH ?? 6.57}</span>
+                                        <span className="text-base font-bold text-purple-700">{Number(sensorData?.soilPH ?? 6.5).toFixed(2)}</span>
                                     </div>
                                 </div>
                             </div>
