@@ -89,15 +89,10 @@ export function AiReportModal({ sensorData, weatherData }: AiReportModalProps) {
                 { role: "bot", text: initialGreeting, timestamp: Date.now() }
             ]);
         } catch (err: any) {
-            console.error("Report Generation Failed", err);
-            toast.error("Report generation issue. Retrying with offline AI engine...");
-            try {
-                // Guaranteed fallback
-                const fallbackData = await generateAIReport(sensorData || {}, langToUse, null);
-                setReport(fallbackData);
-            } catch (fbErr) {
-                console.error("Fallback also failed:", fbErr);
-            }
+            console.error("Report Generation Error:", err);
+            // Even if an unexpected error occurs, generate fallback guaranteed
+            const fallback = generateAIReport(sensorData || {}, langToUse, null);
+            fallback.then(fb => setReport(fb));
         } finally {
             setLoading(false);
         }

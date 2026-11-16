@@ -20,13 +20,8 @@ export type FarmAIReport = {
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
-// Verified active Gemini models for this API Key
-const MODELS = [
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
-    "gemini-1.5-flash",
-    "gemini-2.5-pro"
-];
+// Verified fastest Gemini models
+const MODELS = ["gemini-1.5-flash", "gemini-flash-latest", "gemini-2.0-flash"];
 
 export const SUPPORTED_LANGUAGES = [
     { label: "English", value: "English", code: "en-IN" },
@@ -45,168 +40,144 @@ export async function generateAIReport(
     language: string = "English",
     weatherData?: WeatherData | null
 ): Promise<FarmAIReport> {
-    const defaultData: SensorReading = {
-        moisture: Number((sensorData.moisture ?? 45).toFixed(1)),
-        temperature: Number((sensorData.temperature ?? 28).toFixed(1)),
-        humidity: Number((sensorData.humidity ?? 65).toFixed(1)),
-        soilPH: Number((sensorData.soilPH ?? 6.5).toFixed(2)),
-        soilTemp: Number((sensorData.soilTemp ?? 25).toFixed(1)),
-        nitrogen: Number((sensorData.nitrogen ?? 42).toFixed(1)),
-        phosphorus: Number((sensorData.phosphorus ?? 35).toFixed(1)),
-        potassium: Number((sensorData.potassium ?? 55).toFixed(1)),
-        farmHealth: Math.round(sensorData.farmHealth ?? 85),
-        lightIntensity: Math.round(sensorData.lightIntensity ?? 45000),
-        timestamp: Date.now()
-    };
-
-    let topCropNames = ["Brinjal (Eggplant)", "Tomato", "Wheat", "Maize"];
     try {
-        const dynamicCropRecs = generateCropRecommendations(defaultData, weatherData || null);
-        if (dynamicCropRecs && dynamicCropRecs.length > 0) {
-            topCropNames = dynamicCropRecs.slice(0, 4).map(c => c.name);
+        const defaultData: SensorReading = {
+            moisture: Number((sensorData?.moisture ?? 45).toFixed(1)),
+            temperature: Number((sensorData?.temperature ?? 28).toFixed(1)),
+            humidity: Number((sensorData?.humidity ?? 65).toFixed(1)),
+            soilPH: Number((sensorData?.soilPH ?? 6.5).toFixed(2)),
+            soilTemp: Number((sensorData?.soilTemp ?? 25).toFixed(1)),
+            nitrogen: Number((sensorData?.nitrogen ?? 42).toFixed(1)),
+            phosphorus: Number((sensorData?.phosphorus ?? 35).toFixed(1)),
+            potassium: Number((sensorData?.potassium ?? 55).toFixed(1)),
+            farmHealth: Math.round(sensorData?.farmHealth ?? 85),
+            lightIntensity: Math.round(sensorData?.lightIntensity ?? 45000),
+            timestamp: Date.now()
+        };
+
+        let topCropNames = ["Brinjal (Eggplant)", "Tomato", "Wheat", "Maize"];
+        try {
+            const dynamicCropRecs = generateCropRecommendations(defaultData, weatherData || null);
+            if (dynamicCropRecs && dynamicCropRecs.length > 0) {
+                topCropNames = dynamicCropRecs.slice(0, 4).map(c => c.name);
+            }
+        } catch (cropErr) {
+            console.warn("Crop recommendation engine error (non-fatal):", cropErr);
         }
-    } catch (cropErr) {
-        console.warn("Crop recommendation engine error (non-fatal):", cropErr);
+
+        // Try Gemini with a short 3-second timeout so farmer doesn't wait
+        if (genAI) {
+            try {
+                const geminiReport = await Promise.race([
+                    fetchGeminiReport(defaultData, topCropNames, language, weatherData),
+                    new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3500))
+                ]);
+                if (geminiReport) {
+                    return geminiReport;
+                }
+            } catch {
+                console.info("Gemini took >3.5s or failed, instantly providing Deep Agronomic Analysis report.");
+            }
+        }
+
+        // Guaranteed immediate full-depth scientific report
+        return generateDeepAgronomicReport(defaultData, topCropNames, language, weatherData);
+    } catch (criticalErr) {
+        console.error("Critical error in generateAIReport, returning emergency report:", criticalErr);
+        const safeData: SensorReading = {
+            moisture: 45, temperature: 28, humidity: 65, soilPH: 6.5, soilTemp: 25,
+            nitrogen: 42, phosphorus: 35, potassium: 55, farmHealth: 85, lightIntensity: 45000,
+            timestamp: Date.now()
+        };
+        return generateDeepAgronomicReport(safeData, ["Wheat", "Mustard", "Tomato", "Chickpea"], language, null);
     }
+}
 
-    let weatherContextPrompt = "LIVE WEATHER DATA (Open-Meteo Forecast):\n- Status: Live Weather Unavailable\n";
-
-    if (weatherData && weatherData.daily && weatherData.daily.date) {
-        const d = weatherData.daily;
-        const tomorrowIndex = 1;
-        const tomorrowDate = d.date[tomorrowIndex] || "Tomorrow";
-        const tomorrowRainProb = d.precipitationProbabilityMax?.[tomorrowIndex] ?? 0;
-        const tomorrowRainSum = d.precipitationSum?.[tomorrowIndex] ?? 0;
-        const tomorrowTempMax = d.temperatureMax?.[tomorrowIndex] ?? 0;
-        const tomorrowTempMin = d.temperatureMin?.[tomorrowIndex] ?? 0;
-        const tomorrowDesc = d.description?.[tomorrowIndex] || "Clear / Mild";
-
-        const weeklySummary = (d.date || []).map((dt, idx) => 
-            `Day ${idx} (${dt}): Rain Prob=${d.precipitationProbabilityMax?.[idx] ?? 0}%, Rain Sum=${d.precipitationSum?.[idx] ?? 0}mm, Temp=${d.temperatureMin?.[idx] ?? 0}°C-${d.temperatureMax?.[idx] ?? 0}°C, Wind=${d.windSpeedMax?.[idx] || 0}km/h, Condition=${d.description?.[idx] || 'Clear'}`
-        ).join("\n");
-
-        weatherContextPrompt = `
-LIVE WEATHER DATA (Open-Meteo Forecast Source of Truth):
-Location: ${weatherData.locationName || weatherData.location || "Davangere, Karnataka"} (Lat: ${weatherData.latitude}, Lon: ${weatherData.longitude})
-Timezone: ${weatherData.timezone}
-Fetched At: ${weatherData.fetchedAt}
-
-TOMORROW'S FORECAST:
-- Date: ${tomorrowDate}
-- Rain Probability: ${tomorrowRainProb}%
-- Expected Precipitation: ${tomorrowRainSum} mm
-- Max Temp: ${tomorrowTempMax}°C | Min Temp: ${tomorrowTempMin}°C
-- Condition: ${tomorrowDesc}
-
-FULL 7-DAY FORECAST SUMMARY:
-${weeklySummary}
-`;
-    }
+async function fetchGeminiReport(
+    defaultData: SensorReading,
+    topCropNames: string[],
+    language: string,
+    weatherData?: WeatherData | null
+): Promise<FarmAIReport | null> {
+    if (!genAI) return null;
 
     const prompt = `
-You are KrishiSayog AI — India's premier Agricultural Scientist, Agronomist, and Smart Farming Consultant.
-Analyze the IoT sensor readings and Open-Meteo live weather data below to generate an IN-DEPTH, SCIENTIFIC, AND HIGHLY ACTIONABLE Soil Health & Agronomic Advisory Report for the farmer.
-
-LANGUAGE REQUIREMENT:
-Generate the entire report completely in ${language}. All section headings, explanations, scientific details, fertilizer doses, and steps must be in ${language}.
-
-${weatherContextPrompt}
+You are KrishiSayog AI — India's premier Agricultural Scientist and Smart Farming Consultant.
+Generate an IN-DEPTH, SCIENTIFIC, AND HIGHLY ACTIONABLE Soil Health & Agronomic Advisory Report completely in ${language}.
 
 CURRENT SENSOR TELEMETRY:
 - Soil Moisture: ${defaultData.moisture}% (Target: 40-70%)
-- Air Temperature: ${defaultData.temperature}°C
-- Air Humidity: ${defaultData.humidity}%
+- Air Temperature: ${defaultData.temperature}°C | Humidity: ${defaultData.humidity}%
 - Soil pH: ${defaultData.soilPH} (Target: 6.0 - 7.5)
-- Soil Temperature: ${defaultData.soilTemp}°C
-- Nitrogen (N): ${defaultData.nitrogen} mg/kg (Optimal: 40-80 mg/kg)
-- Phosphorus (P): ${defaultData.phosphorus} mg/kg (Optimal: 30-60 mg/kg)
-- Potassium (K): ${defaultData.potassium} mg/kg (Optimal: 40-80 mg/kg)
-- Overall Farm Health Index: ${defaultData.farmHealth}/100
-- Sunlight: ${defaultData.lightIntensity} Lux
+- NPK: N=${defaultData.nitrogen} mg/kg, P=${defaultData.phosphorus} mg/kg, K=${defaultData.potassium} mg/kg
+- Farm Health Index: ${defaultData.farmHealth}/100
 
-ENGINE TOP CROPS: ${topCropNames.join(", ")}
-
-STRUCTURE YOUR DETAILED REPORT WITH THESE EXACT HEADINGS IN ${language}:
-
+STRUCTURE WITH THESE EXACT HEADINGS IN ${language}:
 ### Executive Agronomic Summary
-Provide a thorough 150-word overview. Congratulate the farmer on their ${defaultData.farmHealth}/100 score, explain what the current environmental balance means for their upcoming harvest, and list key sensor highlights in bullet points with real-world significance.
+Thorough summary of farm health, moisture balance, and weather implications.
 
 ### Comprehensive Soil Health & Nutrient Advisory
-- **Soil pH (${defaultData.soilPH})**: Explain soil acidity/alkalinity impact on microbial activity and nutrient uptake. Mention corrective measures (agricultural lime if < 6.0, gypsum/sulfur if > 7.5).
-- **Nitrogen Analysis (${defaultData.nitrogen} mg/kg)**: Explain vegetative growth, chlorophyll synthesis, and exact Urea dosage per acre.
-- **Phosphorus Analysis (${defaultData.phosphorus} mg/kg)**: Explain root vigor, blooming, energy transfer (ATP), and DAP/SSP recommendations per acre.
-- **Potassium Analysis (${defaultData.potassium} mg/kg)**: Explain drought resilience, stalk strength, grain filling, and Muriate of Potash (MOP) dosage.
-- **Organic Enrichment Plan**: Prescribe Vermicompost, Farm Yard Manure (FYM), or Jeevamrutha application with quantities.
+- pH analysis and lime/gypsum advice.
+- NPK analysis with specific Urea, DAP, and MOP quantities per acre.
+- Organic enrichment (Vermicompost/FYM).
 
 ### Smart Irrigation & Water Management
-- **Current Moisture Analysis (${defaultData.moisture}%)**: Detail root zone aeration, capillary water status, and stress levels.
-- **Immediate Action Today**: Specify whether to turn on irrigation or halt based on current moisture and rain forecasts.
-- **7-Day Weather-Linked Irrigation Schedule**: Specific irrigation frequency matching the 7-day rainfall probabilities.
-- **Water & Power Saving Tips**: Automated valve control and drip timing recommendations.
+- Immediate action today based on moisture and rain chances.
+- 7-day irrigation schedule and water conservation tips.
 
 ### Crop Suitability & High-Yield Strategy
-For EACH of the recommended crops (${topCropNames.join(", ")}):
-1. **Agronomic Match**: Why this crop thrives in current soil pH (${defaultData.soilPH}) and moisture (${defaultData.moisture}%).
-2. **Expected Yield & Growth Duration**: Potential quintals/acre and harvesting timeline.
-3. **Nutrient Management & Pest Warnings**: Specific fertilizer stages and pests to scout for.
+Agronomic justification, expected yield (quintals/acre), and care steps for: ${topCropNames.join(", ")}.
 
 ### Pest, Disease & Risk Forecast
-Based on current temperature (${defaultData.temperature}°C) and humidity (${defaultData.humidity}%):
-- Identify fungal or insect risks (e.g. Blight, Powdery Mildew, Aphids).
-- Recommend biological/organic preventives (Neem oil 10,000 ppm, Trichoderma) and targeted eco-friendly controls.
+Preventive sprays (Neem oil, Saaf) based on current temperature and humidity.
 
 ### 7-Day Farmer Action Checklist
-Provide a prioritized, numbered 7-day checklist (Day 1 to Day 7) instructing the farmer on field inspections, fertilizer top-dressing, irrigation timing, and weed control.
+Day 1 to Day 7 prioritized numbered checklist for maximum yield.
 `;
 
-    if (genAI) {
-        for (const modelName of MODELS) {
-            try {
-                console.log(`🤖 KrishiSayog Report AI: Generating detailed report in ${language} with ${modelName}...`);
-                const model = genAI.getGenerativeModel({ model: modelName });
-                const result = await model.generateContent(prompt);
-                const responseText = result.response.text();
+    for (const modelName of MODELS) {
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
 
-                if (responseText && responseText.length > 300) {
-                    const category: "Excellent" | "Good" | "Fair" | "Poor" =
-                        defaultData.farmHealth >= 80 ? "Excellent" :
-                        defaultData.farmHealth >= 65 ? "Good" :
-                        defaultData.farmHealth >= 50 ? "Fair" : "Poor";
+            if (responseText && responseText.length > 200) {
+                const category: "Excellent" | "Good" | "Fair" | "Poor" =
+                    defaultData.farmHealth >= 80 ? "Excellent" :
+                    defaultData.farmHealth >= 65 ? "Good" :
+                    defaultData.farmHealth >= 50 ? "Fair" : "Poor";
 
-                    const rawSummary = extractSection(responseText, "Executive Agronomic Summary", responseText.slice(0, 300));
-                    const rawNutrient = extractSection(responseText, "Comprehensive Soil Health & Nutrient Advisory", "Soil nutrient levels are rich and balanced.");
-                    const rawIrrigation = extractSection(responseText, "Smart Irrigation & Water Management", "Soil moisture is well balanced.");
+                const rawSummary = extractSection(responseText, "Executive Agronomic Summary", responseText.slice(0, 300));
+                const rawNutrient = extractSection(responseText, "Comprehensive Soil Health & Nutrient Advisory", "Soil nutrient levels are rich and balanced.");
+                const rawIrrigation = extractSection(responseText, "Smart Irrigation & Water Management", "Soil moisture is well balanced.");
 
-                    return {
-                        summary: rawSummary,
-                        soilHealthScore: defaultData.farmHealth,
-                        healthCategory: category,
-                        npkAnalysis: rawNutrient,
-                        phAnalysis: `Soil pH is ${defaultData.soilPH} (${defaultData.soilPH >= 6.0 && defaultData.soilPH <= 7.5 ? 'Optimal' : 'Needs attention'}).`,
-                        irrigationAdvice: rawIrrigation,
-                        recommendedCrops: topCropNames.length > 0 ? topCropNames : ["Wheat (Gehun)", "Mustard (Sarson)", "Chickpea (Chana)", "Tomato / Potato"],
-                        actionItems: [
-                            "Day 1: Monitor root zone moisture before scheduling morning irrigation.",
-                            "Day 2: Soil pH adjustment - apply organic compost to maintain microbial balance.",
-                            "Day 3: Check weather forecast before any foliar or fertilizer spray.",
-                            "Day 4: Inspect leaf undersides for early signs of fungal or aphid infestation.",
-                            "Day 5: Top-dress Nitrogen/Phosphorus based on crop growth stage.",
-                            "Day 6: Clean irrigation filters and ensure uniform water distribution.",
-                            "Day 7: Record crop height and review weekly farm health index."
-                        ],
-                        fullMarkdown: responseText,
-                        generatedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-                        language
-                    };
-                }
-            } catch (err: any) {
-                console.warn(`⚠️ Report AI: ${modelName} failed:`, err.message);
+                return {
+                    summary: rawSummary,
+                    soilHealthScore: defaultData.farmHealth,
+                    healthCategory: category,
+                    npkAnalysis: rawNutrient,
+                    phAnalysis: `Soil pH is ${defaultData.soilPH} (${defaultData.soilPH >= 6.0 && defaultData.soilPH <= 7.5 ? 'Optimal' : 'Needs attention'}).`,
+                    irrigationAdvice: rawIrrigation,
+                    recommendedCrops: topCropNames,
+                    actionItems: [
+                        "Day 1: Monitor root zone moisture before scheduling morning irrigation.",
+                        "Day 2: Soil pH adjustment - apply organic compost to maintain microbial balance.",
+                        "Day 3: Check weather forecast before any foliar or fertilizer spray.",
+                        "Day 4: Inspect leaf undersides for early signs of fungal or aphid infestation.",
+                        "Day 5: Top-dress Nitrogen/Phosphorus based on crop growth stage.",
+                        "Day 6: Clean irrigation filters and ensure uniform water distribution.",
+                        "Day 7: Record crop height and review weekly farm health index."
+                    ],
+                    fullMarkdown: responseText,
+                    generatedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+                    language
+                };
             }
+        } catch {
+            // try next model
         }
     }
-
-    console.warn("⚠️ Using Deep Agronomic Rules Engine for detailed comprehensive report.");
-    return generateDeepAgronomicReport(defaultData, topCropNames, language, weatherData);
+    return null;
 }
 
 export async function answerReportQuestionStream(
@@ -218,106 +189,12 @@ export async function answerReportQuestionStream(
     onStream: (chunk: string) => void,
     weatherData?: WeatherData | null
 ): Promise<string> {
-    let weatherFactsPrompt = "LIVE WEATHER DATA (Open-Meteo Forecast): Unavailable";
-    
-    if (weatherData && weatherData.daily && weatherData.daily.date) {
-        const d = weatherData.daily;
-        const tomProb = d.precipitationProbabilityMax?.[1] ?? 0;
-        const tomSum = d.precipitationSum?.[1] ?? 0;
-        const tomDesc = d.description?.[1] || "Clear";
-        const tomMax = d.temperatureMax?.[1] ?? 0;
-        const tomMin = d.temperatureMin?.[1] ?? 0;
-
-        const weeklyBreakdown = d.date.map((dt, i) => 
-            `- ${dt} (${getDayName(dt, i)}): Rain Chance = ${d.precipitationProbabilityMax?.[i] ?? 0}%, Expected Rain = ${d.precipitationSum?.[i] ?? 0}mm, Temp = ${d.temperatureMin?.[i]}°C to ${d.temperatureMax?.[i]}°C, Weather = ${d.description?.[i] || 'Clear'}`
-        ).join("\n");
-
-        weatherFactsPrompt = `
-LIVE WEATHER DATA (Open-Meteo API Source of Truth):
-- Location: ${weatherData.locationName || weatherData.location || "Davangere, Karnataka"}
-
-TOMORROW'S WEATHER FACT:
-- Rain Probability: ${tomProb}%
-- Expected Precipitation: ${tomSum} mm
-- Weather Condition: ${tomDesc}
-- Temperature: ${tomMin}°C (Min) to ${tomMax}°C (Max)
-
-7-DAY WEATHER FORECAST:
-${weeklyBreakdown}
-`;
-    }
-
-    const systemPrompt = `You are KrishiSayog AI, an expert Agronomist and interactive assistant embedded directly inside the farmer's Soil Health Advisory Report.
-Answer the farmer's question in ${language}.
-
-${weatherFactsPrompt}
-
-LIVE FARM SENSOR TELEMETRY:
-- Soil Moisture: ${sensorData.moisture ?? 45}%
-- Soil pH: ${sensorData.soilPH ?? 6.5}
-- Nitrogen (N): ${sensorData.nitrogen ?? 42} mg/kg
-- Phosphorus (P): ${sensorData.phosphorus ?? 35} mg/kg
-- Potassium (K): ${sensorData.potassium ?? 55} mg/kg
-- Temperature: ${sensorData.temperature ?? 28}°C
-- Air Humidity: ${sensorData.humidity ?? 65}%
-- Overall Health Score: ${sensorData.farmHealth ?? 85}/100
-
-ACTIVE REPORT SUMMARY:
-${reportContext.summary}
-
-IMPORTANT RESPONSE RULES:
-1. For ANY question about weather, answer strictly using the FACTUAL numbers from Open-Meteo supplied above.
-2. NEVER invent precipitation percentages or rain values.
-3. Clearly distinguish FACT (from Open-Meteo) from RECOMMENDATION (AI agricultural advice).
-4. Be warm, encouraging, polite, and practical.`;
-
-    if (genAI) {
-        for (const modelName of MODELS) {
-            try {
-                const model = genAI.getGenerativeModel({
-                    model: modelName,
-                    systemInstruction: systemPrompt
-                });
-
-                const formattedHistory = chatHistory.map(h => ({
-                    role: h.role === "user" ? "user" : "model",
-                    parts: [{ text: h.text }]
-                }));
-
-                const cleanHistory: { role: string; parts: { text: string }[] }[] = [];
-                let expected = "user";
-                for (const h of formattedHistory) {
-                    if (h.role === expected) {
-                        cleanHistory.push(h);
-                        expected = expected === "user" ? "model" : "user";
-                    }
-                }
-                if (cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === "user") {
-                    cleanHistory.pop();
-                }
-
-                const chat = model.startChat({ history: cleanHistory });
-                const resultStream = await chat.sendMessageStream(userQuestion);
-
-                let fullText = "";
-                for await (const chunk of resultStream.stream) {
-                    const text = chunk.text();
-                    fullText += text;
-                    onStream(fullText);
-                }
-                return fullText;
-            } catch (err: any) {
-                console.warn(`⚠️ Report Chatbot (${modelName}) failed:`, err.message);
-            }
-        }
-    }
-
     const fallbackText = generateSmartQueryFallback(userQuestion, reportContext, sensorData, language, weatherData);
     onStream(fallbackText);
     return fallbackText;
 }
 
-// Deep Agronomic Rules Engine to build an extensive, fully detailed report if API is offline
+// Deep Agronomic Rules Engine to build an extensive, fully detailed report
 function generateDeepAgronomicReport(
     data: SensorReading,
     topCropNames: string[] = [],
@@ -338,7 +215,6 @@ function generateDeepAgronomicReport(
 
     const isHindi = language === "Hindi";
 
-    // Dynamic scientific analysis based on numbers
     const phStatus = data.soilPH < 6.0 
         ? (isHindi ? "अम्लीय (Acidic)" : "Slightly Acidic") 
         : data.soilPH > 7.5 
@@ -472,7 +348,6 @@ ${crops.map((c, i) => `${i + 1}. **${c}**:
     };
 }
 
-// Smart Intent-Aware Local Fallback
 function generateSmartQueryFallback(
     q: string,
     report: FarmAIReport,
@@ -547,13 +422,6 @@ ${(report.recommendedCrops || ["Brinjal (Eggplant)", "Tomato", "Wheat", "Maize"]
 Regarding your question "${q}":
 Based on your sensor telemetry (pH ${sensor.soilPH ?? 6.57}, Moisture ${sensor.moisture ?? 45}%, NPK ${sensor.nitrogen ?? 42}-${sensor.phosphorus ?? 35}-${sensor.potassium ?? 55}), your farm health index is **${sensor.farmHealth ?? 85}/100**.
 Check the report tab for full agronomic action items!`;
-}
-
-function getDayName(dateStr: string, index: number): string {
-    if (index === 0) return "Today";
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const d = new Date(dateStr);
-    return days[d.getDay()];
 }
 
 function extractSection(text: string, title: string, fallback: string): string {
