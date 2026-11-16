@@ -20,14 +20,13 @@ export type FarmAIReport = {
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
-// Hierarchy of supported Gemini model versions
+// Hierarchy of supported Gemini model versions (valid names only)
 const MODELS = [
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
-    "gemini-flash-latest"
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro",
+    "gemini-pro"
 ];
 
 export const SUPPORTED_LANGUAGES = [
@@ -99,49 +98,83 @@ ${weeklySummary}
     }
 
     const prompt = `
-You are KrishiSayog AI, a warm, highly encouraging, expert Agronomist and Soil Health Specialist in India.
-Analyze the following real-time IoT farm sensor telemetry and live weather forecast to generate an OPTIMISTIC, DECORATIVE, AND HIGHLY PROFESSIONAL Soil Health & Agronomic Advisory Report for the farmer.
+You are KrishiSayog AI — India's most trusted Expert Agronomist, Soil Scientist, and Farm Advisory Specialist.
+Analyze the real-time IoT sensor telemetry and live weather forecast below, and generate a COMPREHENSIVE, HIGHLY DETAILED, and PROFESSIONAL Soil Health & Agronomic Advisory Report.
 
-IMPORTANT LANGUAGE MANDATE:
-Generate the entire response completely in ${language}. All greetings, titles, section headers, advisory text, recommended crops explanations, and farmer action steps MUST be written in ${language}.
+LANGUAGE MANDATE: Write the ENTIRE response in ${language}. Every heading, sentence, bullet point, explanation, and recommendation must be in ${language} only.
 
 ${weatherContextPrompt}
 
-CURRENT SENSOR TELEMETRY:
-- Soil Moisture: ${defaultData.moisture}% (Optimal: 40-70%)
+LIVE SENSOR TELEMETRY FROM FARM:
+- Soil Moisture: ${defaultData.moisture}% (Optimal range: 40–70%)
 - Air Temperature: ${defaultData.temperature}°C
 - Air Humidity: ${defaultData.humidity}%
-- Soil pH: ${defaultData.soilPH} (Optimal: 6.0 - 7.5)
+- Soil pH: ${defaultData.soilPH} (Optimal: 6.0–7.5 for most crops)
 - Soil Temperature: ${defaultData.soilTemp}°C
-- Nitrogen (N): ${defaultData.nitrogen} mg/kg (Optimal: 40-80 mg/kg)
-- Phosphorus (P): ${defaultData.phosphorus} mg/kg (Optimal: 30-60 mg/kg)
-- Potassium (K): ${defaultData.potassium} mg/kg (Optimal: 40-80 mg/kg)
+- Nitrogen (N): ${defaultData.nitrogen} mg/kg (Optimal: 40–80 mg/kg)
+- Phosphorus (P): ${defaultData.phosphorus} mg/kg (Optimal: 30–60 mg/kg)
+- Potassium (K): ${defaultData.potassium} mg/kg (Optimal: 40–80 mg/kg)
 - Overall Farm Health Index: ${defaultData.farmHealth}/100
 - Sunlight Intensity: ${defaultData.lightIntensity} Lux
 
-AGRONOMIC ENGINE RECOMMENDED CROPS: ${topCropNames.join(", ")}
+AI CROP ENGINE RECOMMENDED CROPS: ${topCropNames.join(", ")}
 
-STRICT TRUTH MANDATES:
-1. Use ONLY the supplied weather data for numerical weather facts (never invent rain percentages).
-2. Distinguish FACT (from Open-Meteo) from RECOMMENDATION (AI advice).
+STRICT RULES:
+1. Use ONLY the weather data above for all numerical weather facts. Never invent rain percentages.
+2. For every recommendation, explain WHY in 2–3 sentences (the science behind it).
+3. For every nutrient, explain what happens to the crop if it's low/high and what to apply.
+4. Be warm, encouraging, and use farmer-friendly language.
+5. Each section must have at least 150 words of detailed content.
 
-Format with clean Markdown headers (translated into ${language}):
+Generate a detailed report with these EXACT sections in ${language}:
 
 ### Executive Agronomic Summary
-Warm greeting, overall congratulation message, and short bulleted breakdown of Soil & Moisture, Nutrient Profile, and Weather Forecast.
+Write a warm greeting, congratulate the farmer, and provide a full overview of:
+- Overall farm health status and what it means for the farmer
+- Key highlights from soil moisture, temperature, and humidity readings
+- Brief weather outlook and how it affects farming decisions today
+- 3-4 bullet points summarizing the most critical observations
 
-### Soil Health & Nutrient Advisory
-Optimistic analysis of pH Level (${defaultData.soilPH}), Nitrogen (${defaultData.nitrogen} mg/kg), Phosphorus (${defaultData.phosphorus} mg/kg), Potassium (${defaultData.potassium} mg/kg), and Organic Treatment tips. Highlight cost savings!
+### Soil Health & Nutrient Analysis
+Provide a thorough scientific analysis of:
+- **pH Analysis**: Current pH is ${defaultData.soilPH}. Explain if this is optimal, what crops thrive at this pH, what happens below 6.0 or above 7.5, and whether lime or sulfur is needed.
+- **Nitrogen (N) Analysis**: Current N = ${defaultData.nitrogen} mg/kg. Explain nitrogen's role in crop growth (leaf development, chlorophyll), whether current levels are deficient/optimal/excess, and specific fertilizer recommendations (Urea quantity per acre, timing).
+- **Phosphorus (P) Analysis**: Current P = ${defaultData.phosphorus} mg/kg. Explain phosphorus's role (root development, flowering, fruiting), current status, and DAP/SSP application advice with quantities.
+- **Potassium (K) Analysis**: Current K = ${defaultData.potassium} mg/kg. Explain potassium's role (disease resistance, water regulation, grain quality), current status, and MOP/SOP application advice.
+- **Organic Matter Recommendation**: Based on the NPK profile, recommend specific organic treatments (vermicompost, FYM, green manure) with quantities and application method.
 
-### Irrigation & Water Management
-Current status, immediate action, and forward-looking advice considering tomorrow's rain forecast.
+### Irrigation & Water Management Plan
+Provide a detailed irrigation plan covering:
+- Current soil moisture status (${defaultData.moisture}%) — is the crop water-stressed, well-watered, or over-watered?
+- Exact interpretation: at this moisture level, what is happening to the crop roots?
+- Immediate irrigation decision for today — should the farmer irrigate or not, and why?
+- Tomorrow's forecast impact — if rain is coming, how does it change the irrigation schedule?
+- Weekly water management schedule based on the 7-day forecast
+- Water conservation tips specific to current moisture and weather conditions
+- Warning signs of over-irrigation and under-irrigation to watch for
 
-### Top Recommended Crops
-Detailed list of 4 recommended crops (${topCropNames.join(", ")}) with specific reasons why this soil will deliver exceptional yields.
+### Top Recommended Crops & Planting Guide
+For EACH of the 4 recommended crops (${topCropNames.join(", ")}), provide:
+- Why this crop is ideal for the CURRENT soil pH, NPK, moisture, and temperature readings (scientific reasons)
+- Expected yield per acre under these conditions
+- Optimal sowing date range for the current season
+- Key care instructions: irrigation frequency, fertilizer schedule, common pests to watch
+- Estimated profit potential
 
-### Farmer Action Plan: Maximizing Your Soil Health
-Numbered list of 5 encouraging, actionable steps.
+### Pest & Disease Risk Assessment
+Based on current temperature (${defaultData.temperature}°C) and humidity (${defaultData.humidity}%):
+- Identify 3 most likely pest/disease threats for the recommended crops
+- Explain why these conditions favor each pest/disease
+- Provide specific preventive measures with product names and application rates
+- Organic alternatives for each chemical recommendation
+
+### Farmer Action Plan: 7 Steps for Maximum Yield
+Provide 7 numbered, specific, actionable steps the farmer should take in the NEXT 7 DAYS:
+- Each step must include WHAT to do, WHEN to do it, HOW to do it, and WHY it matters
+- Include specific product names, quantities, and costs where relevant
+- Steps should be in priority order
 `;
+
 
     if (!genAI) {
         return generateOfflineFallbackReport(defaultData, topCropNames, language, weatherData);

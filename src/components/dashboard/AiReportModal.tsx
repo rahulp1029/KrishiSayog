@@ -382,16 +382,47 @@ export function AiReportModal({ sensorData, weatherData }: AiReportModalProps) {
 
                                                 if (trimmed.startsWith("###")) {
                                                     return (
-                                                        <h4 key={pIdx} className="font-bold text-emerald-900 text-sm pt-2 border-b border-slate-200 pb-1 flex items-center gap-1.5">
+                                                        <h4 key={pIdx} className="font-bold text-emerald-900 text-sm pt-3 border-b border-emerald-200 pb-1.5 flex items-center gap-1.5">
                                                             🌿 {trimmed.replace(/###\s*\d*\.?\s*/g, "")}
                                                         </h4>
                                                     );
                                                 }
 
+                                                // Render bullet points
+                                                if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+                                                    return (
+                                                        <ul key={pIdx} className="space-y-1 ml-3">
+                                                            {trimmed.split("\n").map((line, li) => {
+                                                                const content = line.replace(/^[-•]\s*/, "");
+                                                                return (
+                                                                    <li key={li} className="flex gap-2 items-start">
+                                                                        <span className="text-emerald-600 mt-0.5">•</span>
+                                                                        <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    );
+                                                }
+
+                                                // Numbered list
+                                                if (/^\d+\./.test(trimmed)) {
+                                                    return (
+                                                        <ol key={pIdx} className="space-y-2 ml-3 list-decimal list-inside">
+                                                            {trimmed.split("\n").map((line, li) => (
+                                                                <li key={li} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong class='text-emerald-800'>$1</strong>") }} />
+                                                            ))}
+                                                        </ol>
+                                                    );
+                                                }
+
+                                                // Bold inline headings like **pH Analysis**:
                                                 return (
-                                                    <p key={pIdx} className="leading-relaxed">
-                                                        {trimmed.replace(/\*\*/g, "").replace(/\*/g, "")}
-                                                    </p>
+                                                    <p key={pIdx} className="leading-relaxed" dangerouslySetInnerHTML={{
+                                                        __html: trimmed
+                                                            .replace(/\*\*(.*?)\*\*/g, "<strong class='text-emerald-900'>$1</strong>")
+                                                            .replace(/\*(.*?)\*/g, "<em>$1</em>")
+                                                    }} />
                                                 );
                                             })}
                                     </div>
